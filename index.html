@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Activity Log</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Activity Log">
+<meta name="theme-color" content="#0f3d3e">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="manifest" href="manifest.json">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#f3f5f4; --card:#ffffff; --ink:#1b2624; --muted:#6b7a77;
+    --brand:#0f3d3e; --accent:#14a38b; --warn:#d9822b; --danger:#c0392b;
+    --line:#e2e7e5;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#0d1514; --card:#17211f; --ink:#e8efed; --muted:#93a3a0; --line:#26332f; }
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:16px}
+  header{background:var(--brand);color:#fff;padding:calc(env(safe-area-inset-top) + 12px) 16px 12px;
+    position:sticky;top:0;z-index:5}
+  header h1{margin:0;font-size:20px;font-weight:700;letter-spacing:.3px}
+  header .sub{font-size:12px;opacity:.75;margin-top:2px}
+  main{padding:14px 14px calc(env(safe-area-inset-bottom) + 90px);max-width:640px;margin:0 auto}
+  .card{background:var(--card);border-radius:14px;padding:14px;margin-bottom:12px;
+    box-shadow:0 1px 3px rgba(0,0,0,.06);border:1px solid var(--line)}
+  .card h2{margin:0 0 10px;font-size:16px}
+  label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
+  input,select,textarea{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);
+    background:var(--bg);color:var(--ink);font-size:16px;font-family:inherit;-webkit-appearance:none;appearance:none}
+  select{background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);
+    background-position:calc(100% - 18px) 50%,calc(100% - 12px) 50%;background-size:6px 6px;background-repeat:no-repeat;padding-right:32px}
+  textarea{min-height:70px;resize:vertical}
+  button{font:inherit;border:0;border-radius:10px;padding:12px 14px;cursor:pointer}
+  .btn{background:var(--accent);color:#fff;font-weight:600;width:100%;margin-top:14px;font-size:17px}
+  .btn.secondary{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+  .btn.danger{background:transparent;color:var(--danger);border:1px solid var(--danger)}
+  .row{display:flex;gap:8px;align-items:center}
+  .row > *{flex:1}
+  .small{font-size:13px;color:var(--muted)}
+  .pill{display:inline-block;font-size:12px;padding:3px 8px;border-radius:20px;background:var(--bg);color:var(--muted);border:1px solid var(--line)}
+  .pill.due{background:var(--warn);color:#fff;border-color:var(--warn)}
+  .pill.ok{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .list-item{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+  .list-item:last-child{border-bottom:0}
+  .li-main{flex:1;min-width:0}
+  .li-title{font-weight:600}
+  .li-comment{font-size:14px;color:var(--muted);margin-top:2px;word-wrap:break-word}
+  .icon-btn{background:transparent;color:var(--muted);padding:6px 8px;font-size:18px}
+  .stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+  .stat{background:var(--bg);border-radius:10px;padding:8px 10px}
+  .stat .v{font-size:18px;font-weight:700}
+  .stat .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+  .bar{display:flex;align-items:flex-end;gap:2px;height:40px;margin-top:10px}
+  .bar div{flex:1;background:var(--accent);opacity:.8;border-radius:2px 2px 0 0;min-height:1px}
+  .bar-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:2px}
+  nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--line);
+    display:flex;padding:6px 0 calc(env(safe-area-inset-bottom) + 6px);z-index:5}
+  nav button{flex:1;background:transparent;color:var(--muted);font-size:11px;padding:6px 0;display:flex;flex-direction:column;align-items:center;gap:2px}
+  nav button .ic{font-size:22px;line-height:1}
+  nav button.active{color:var(--accent);font-weight:600}
+  .view{display:none}.view.active{display:block}
+  .toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 80px);transform:translateX(-50%);
+    background:var(--brand);color:#fff;padding:10px 16px;border-radius:20px;font-size:14px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:20}
+  .toast.show{opacity:1}
+  .empty{text-align:center;color:var(--muted);padding:20px 0}
+  .quick{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px}
+  .quick:last-child{border-bottom:0}
+</style>
+</head>
+<body>
+<header>
+  <h1>Activity Log</h1>
+  <div class="sub" id="headerSub">Track recurring jobs &amp; how often they happen</div>
+</header>
+
+<main>
+  <!-- LOG -->
+  <section class="view active" id="view-log">
+    <div class="card">
+      <h2>New entry</h2>
+      <label for="fDate">Date</label>
+      <input type="date" id="fDate">
+      <label for="fActivity">Activity</label>
+      <select id="fActivity"></select>
+      <label for="fComment">Comment (optional)</label>
+      <textarea id="fComment" placeholder="e.g. router lights flashing, reset at 7am"></textarea>
+      <button class="btn" id="saveBtn">Save entry</button>
+    </div>
+    <div class="card">
+      <h2>Last done</h2>
+      <div id="quickList"></div>
+    </div>
+  </section>
+
+  <!-- HISTORY -->
+  <section class="view" id="view-history">
+    <div class="card">
+      <label for="hFilter" style="margin-top:0">Show</label>
+      <select id="hFilter"></select>
+    </div>
+    <div class="card"><div id="historyList"></div></div>
+  </section>
+
+  <!-- STATS -->
+  <section class="view" id="view-stats">
+    <div id="statsList"></div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section class="view" id="view-settings">
+    <div class="card">
+      <h2>Activities</h2>
+      <div id="actList"></div>
+      <label for="newAct">Add a new activity</label>
+      <div class="row">
+        <input type="text" id="newAct" placeholder="e.g. Car wash">
+        <button class="btn" id="addActBtn" style="flex:0 0 auto;width:auto;margin-top:0">Add</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Export</h2>
+      <p class="small" style="margin-top:0">Excel file with two sheets: the full log, and a frequency summary per activity.</p>
+      <button class="btn" id="exportXlsx">Download Excel summary</button>
+    </div>
+    <div class="card">
+      <h2>Backup &amp; restore</h2>
+      <p class="small" style="margin-top:0">Data is stored only on this phone. Save a backup now and then (e.g. to iCloud Drive via Files) so nothing is lost if the app is removed.</p>
+      <button class="btn secondary" id="backupBtn">Save backup file</button>
+      <button class="btn secondary" id="restoreBtn">Restore from backup</button>
+      <input type="file" id="restoreFile" accept=".json,application/json" style="display:none">
+    </div>
+    <div class="card">
+      <button class="btn danger" id="wipeBtn" style="margin-top:0">Delete all entries</button>
+    </div>
+    <p class="small" style="text-align:center">Activity Log v1.0</p>
+  </section>
+</main>
+
+<nav>
+  <button data-view="log" class="active"><span class="ic">＋</span>Log</button>
+  <button data-view="history"><span class="ic">☰</span>History</button>
+  <button data-view="stats"><span class="ic">◔</span>Frequency</button>
+  <button data-view="settings"><span class="ic">⚙︎</span>Settings</button>
+</nav>
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+  const KEY = "activityLog.v1";
+  const DEFAULT_ACTIVITIES = ["Internet reset","Razor charge","Toothbrush charge","Ring Doorbell charge","Haircut"];
+  const DAY = 86400000;
+
+  // ---------- Storage ----------
+  function load(){
+    try{
+      const raw = localStorage.getItem(KEY);
+      if(raw){
+        const d = JSON.parse(raw);
+        if(Array.isArray(d.activities) && Array.isArray(d.entries)) return d;
+      }
+    }catch(e){}
+    return { activities: DEFAULT_ACTIVITIES.slice(), entries: [] };
+  }
+  let data = load();
+  function save(){
+    try{ localStorage.setItem(KEY, JSON.stringify(data)); }
+    catch(e){ toast("Could not save – storage full?"); }
+  }
+
+  // ---------- Helpers ----------
+  const $ = id => document.getElementById(id);
+  function todayISO(){
+    const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0,10);
+  }
+  function toUTC(iso){ const [y,m,d] = iso.split("-").map(Number); return Date.UTC(y,m-1,d); }
+  function daysBetween(a,b){ return Math.round((toUTC(b) - toUTC(a)) / DAY); }
+  function fmtDate(iso){
+    if(!iso) return "–";
+    const [y,m,d] = iso.split("-").map(Number);
+    return new Date(y,m-1,d).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"});
+  }
+  function addDays(iso,n){
+    const t = new Date(toUTC(iso) + n*DAY);
+    return t.toISOString().slice(0,10);
+  }
+  function esc(s){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+  function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+  function plural(n,w){ return n + " " + w + (n===1 ? "" : "s"); }
+  function toast(msg){
+    const t = $("toast"); t.textContent = msg; t.classList.add("show");
+    clearTimeout(toast._t); toast._t = setTimeout(()=>t.classList.remove("show"), 1800);
+  }
+  function sortedEntries(){
+    return data.entries.slice().sort((a,b)=> b.date.localeCompare(a.date) || b.created - a.created);
+  }
+
+  // ---------- Stats ----------
+  function statsFor(activity){
+    const dates = data.entries.filter(e=>e.activity===activity).map(e=>e.date).sort();
+    const today = todayISO();
+    const s = { activity, count: dates.length, first: dates[0] || null, last: dates[dates.length-1] || null };
+    s.daysSince = s.last ? daysBetween(s.last, today) : null;
+    const gaps = [];
+    for(let i=1;i<dates.length;i++){ gaps.push(daysBetween(dates[i-1], dates[i])); }
+    s.gaps = gaps;
+    s.avg = gaps.length ? gaps.reduce((a,b)=>a+b,0) / gaps.length : null;
+    s.min = gaps.length ? Math.min(...gaps) : null;
+    s.max = gaps.length ? Math.max(...gaps) : null;
+    s.next = (s.avg !== null && s.last) ? addDays(s.last, Math.round(s.avg)) : null;
+    const spanDays = s.first ? Math.max(daysBetween(s.first, today), 1) : null;
+    s.perMonth = (s.count > 1 && spanDays) ? (s.count / spanDays) * 30.44 : null;
+    // last 12 months counts
+    const now = new Date(); const months = [];
+    for(let i=11;i>=0;i--){
+      const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+      const key = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0");
+      months.push({ key, label: d.toLocaleDateString("en-GB",{month:"narrow"}), n: dates.filter(x=>x.startsWith(key)).length });
+    }
+    s.months = months;
+    return s;
+  }
+  function round1(n){ return n===null ? null : Math.round(n*10)/10; }
+
+  // ---------- Render ----------
+  function fillSelect(sel, withAll){
+    const cur = sel.value;
+    sel.innerHTML = (withAll ? '<option value="">All activities</option>' : "") +
+      data.activities.map(a=>`<option value="${esc(a)}">${esc(a)}</option>`).join("");
+    if(cur && [...sel.options].some(o=>o.value===cur)) sel.value = cur;
+  }
+
+  function renderQuick(){
+    const html = data.activities.map(a=>{
+      const s = statsFor(a);
+      const right = s.last ? (s.daysSince===0 ? "Today" : plural(s.daysSince,"day") + " ago") : "Never";
+      return `<div class="quick"><span>${esc(a)}</span><span class="small">${right}</span></div>`;
+    }).join("");
+    $("quickList").innerHTML = html || '<div class="empty">No activities yet</div>';
+  }
+
+  function renderHistory(){
+    const f = $("hFilter").value;
+    const list = sortedEntries().filter(e=> !f || e.activity===f);
+    if(!list.length){ $("historyList").innerHTML = '<div class="empty">No entries yet</div>'; return; }
+    $("historyList").innerHTML = list.map(e=>`
+      <div class="list-item">
+        <div class="li-main">
+          <div class="li-title">${esc(e.activity)}</div>
+          <div class="small">${fmtDate(e.date)}</div>
+          ${e.comment ? `<div class="li-comment">${esc(e.comment)}</div>` : ""}
+        </div>
+        <button class="icon-btn" data-edit="${e.id}" aria-label="Edit">✎</button>
+        <button class="icon-btn" data-del="${e.id}" aria-label="Delete">🗑</button>
+      </div>`).join("");
+  }
+
+  function renderStats(){
+    const today = todayISO();
+    const html = data.activities.map(a=>{
+      const s = statsFor(a);
+      let pill = "";
+      if(s.next){
+        const until = daysBetween(today, s.next);
+        pill = until < 0 ? `<span class="pill due">Overdue by ${plural(-until,"day")}</span>`
+             : until === 0 ? `<span class="pill due">Due today</span>`
+             : `<span class="pill ok">Due in ${plural(until,"day")}</span>`;
+      } else if(s.count===1){ pill = `<span class="pill">Need 2+ entries for frequency</span>`; }
+      else if(!s.count){ pill = `<span class="pill">No entries</span>`; }
+      const maxM = Math.max(1, ...s.months.map(m=>m.n));
+      const bars = s.count ? `
+        <div class="bar">${s.months.map(m=>`<div style="height:${(m.n/maxM)*100}%" title="${m.key}: ${m.n}"></div>`).join("")}</div>
+        <div class="bar-labels">${s.months.map(m=>`<span>${m.label}</span>`).join("")}</div>
+        <div class="small" style="margin-top:4px">Entries per month, last 12 months</div>` : "";
+      return `
+      <div class="card">
+        <div class="row" style="justify-content:space-between"><h2 style="margin:0;flex:1">${esc(a)}</h2><div style="flex:0 0 auto">${pill}</div></div>
+        <div class="stats-grid">
+          <div class="stat"><div class="k">Times logged</div><div class="v">${s.count}</div></div>
+          <div class="stat"><div class="k">Last done</div><div class="v" style="font-size:15px">${fmtDate(s.last)}</div></div>
+          <div class="stat"><div class="k">Average gap</div><div class="v">${s.avg!==null ? round1(s.avg)+" d" : "–"}</div></div>
+          <div class="stat"><div class="k">Days since</div><div class="v">${s.daysSince!==null ? s.daysSince : "–"}</div></div>
+          <div class="stat"><div class="k">Shortest / longest</div><div class="v">${s.min!==null ? s.min+" / "+s.max+" d" : "–"}</div></div>
+          <div class="stat"><div class="k">Next expected</div><div class="v" style="font-size:15px">${fmtDate(s.next)}</div></div>
+        </div>
+        ${bars}
+      </div>`;
+    }).join("");
+    $("statsList").innerHTML = html || '<div class="card empty">Add an activity in Settings</div>';
+  }
+
+  function renderActivities(){
+    $("actList").innerHTML = data.activities.map((a,i)=>{
+      const n = data.entries.filter(e=>e.activity===a).length;
+      return `<div class="list-item">
+        <div class="li-main"><div class="li-title">${esc(a)}</div><div class="small">${plural(n,"entry").replace("entrys","entries")}</div></div>
+        <button class="icon-btn" data-up="${i}" aria-label="Move up">↑</button>
+        <button class="icon-btn" data-rename="${i}" aria-label="Rename">✎</button>
+        <button class="icon-btn" data-remove="${i}" aria-label="Remove">🗑</button>
+      </div>`;
+    }).join("") || '<div class="empty">No activities</div>';
+  }
+
+  function renderAll(){
+    fillSelect($("fActivity"), false);
+    fillSelect($("hFilter"), true);
+    renderQuick(); renderHistory(); renderStats(); renderActivities();
+    $("headerSub").textContent = data.entries.length
+      ? plural(data.entries.length,"entry").replace("entrys","entries") + " across " + plural(data.activities.length,"activity").replace("activitys","activities")
+      : "Track recurring jobs & how often they happen";
+  }
+
+  // ---------- Actions ----------
+  $("fDate").value = todayISO();
+
+  $("saveBtn").addEventListener("click", ()=>{
+    const date = $("fDate").value, activity = $("fActivity").value, comment = $("fComment").value.trim();
+    if(!date){ toast("Pick a date"); return; }
+    if(!activity){ toast("Add an activity in Settings first"); return; }
+    data.entries.push({ id: uid(), date, activity, comment, created: Date.now() });
+    save(); $("fComment").value = ""; $("fDate").value = todayISO();
+    renderAll(); toast("Saved: " + activity);
+  });
+
+  $("hFilter").addEventListener("change", renderHistory);
+
+  $("historyList").addEventListener("click", ev=>{
+    const del = ev.target.closest("[data-del]"), ed = ev.target.closest("[data-edit]");
+    if(del){
+      const e = data.entries.find(x=>x.id===del.dataset.del);
+      if(e && confirm(`Delete ${e.activity} on ${fmtDate(e.date)}?`)){
+        data.entries = data.entries.filter(x=>x.id!==e.id); save(); renderAll(); toast("Deleted");
+      }
+    } else if(ed){
+      const e = data.entries.find(x=>x.id===ed.dataset.edit); if(!e) return;
+      const nd = prompt("Date (YYYY-MM-DD)", e.date); if(nd===null) return;
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(nd.trim()) || isNaN(toUTC(nd.trim()))){ toast("Date must be YYYY-MM-DD"); return; }
+      const nc = prompt("Comment", e.comment || ""); if(nc===null) return;
+      e.date = nd.trim(); e.comment = nc.trim(); save(); renderAll(); toast("Updated");
+    }
+  });
+
+  $("addActBtn").addEventListener("click", ()=>{
+    const name = $("newAct").value.trim();
+    if(!name) return;
+    if(data.activities.some(a=>a.toLowerCase()===name.toLowerCase())){ toast("Already exists"); return; }
+    data.activities.push(name); save(); $("newAct").value = ""; renderAll(); toast("Added " + name);
+  });
+  $("newAct").addEventListener("keydown", e=>{ if(e.key==="Enter") $("addActBtn").click(); });
+
+  $("actList").addEventListener("click", ev=>{
+    const up = ev.target.closest("[data-up]"), rn = ev.target.closest("[data-rename]"), rm = ev.target.closest("[data-remove]");
+    if(up){
+      const i = +up.dataset.up; if(i===0) return;
+      [data.activities[i-1], data.activities[i]] = [data.activities[i], data.activities[i-1]];
+      save(); renderAll();
+    } else if(rn){
+      const i = +rn.dataset.rename, old = data.activities[i];
+      const nn = prompt("Rename activity", old); if(!nn || !nn.trim() || nn.trim()===old) return;
+      const name = nn.trim();
+      if(data.activities.some(a=>a.toLowerCase()===name.toLowerCase())){ toast("Name already used"); return; }
+      data.activities[i] = name;
+      data.entries.forEach(e=>{ if(e.activity===old) e.activity = name; });
+      save(); renderAll(); toast("Renamed");
+    } else if(rm){
+      const i = +rm.dataset.remove, name = data.activities[i];
+      const n = data.entries.filter(e=>e.activity===name).length;
+      const msg = n ? `Remove "${name}" AND its ${n} logged entr${n===1?"y":"ies"}?` : `Remove "${name}"?`;
+      if(!confirm(msg)) return;
+      data.activities.splice(i,1);
+      data.entries = data.entries.filter(e=>e.activity!==name);
+      save(); renderAll(); toast("Removed");
+    }
+  });
+
+  // ---------- Excel export ----------
+  $("exportXlsx").addEventListener("click", ()=>{
+    if(typeof XLSX === "undefined"){ toast("Excel library not loaded – go online once and retry"); return; }
+    const log = sortedEntries().slice().reverse().map(e=>({
+      "Date": new Date(toUTC(e.date)), "Activity": e.activity, "Comment": e.comment || ""
+    }));
+    const summary = data.activities.map(a=>{
+      const s = statsFor(a);
+      return {
+        "Activity": a,
+        "Times logged": s.count,
+        "First logged": s.first ? new Date(toUTC(s.first)) : "",
+        "Last logged": s.last ? new Date(toUTC(s.last)) : "",
+        "Days since last": s.daysSince ?? "",
+        "Average gap (days)": s.avg!==null ? round1(s.avg) : "",
+        "Shortest gap (days)": s.min ?? "",
+        "Longest gap (days)": s.max ?? "",
+        "Times per month (avg)": s.perMonth!==null ? round1(s.perMonth) : "",
+        "Next expected": s.next ? new Date(toUTC(s.next)) : ""
+      };
+    });
+    // Monthly counts sheet
+    const monthSet = new Set(data.entries.map(e=>e.date.slice(0,7)));
+    const monthKeys = [...monthSet].sort();
+    const monthly = monthKeys.map(k=>{
+      const row = { "Month": k };
+      data.activities.forEach(a=>{ row[a] = data.entries.filter(e=>e.activity===a && e.date.startsWith(k)).length; });
+      return row;
+    });
+
+    const wb = XLSX.utils.book_new();
+    const wsS = XLSX.utils.json_to_sheet(summary, { cellDates:true, dateNF:"dd/mm/yyyy" });
+    wsS["!cols"] = [{wch:24},{wch:13},{wch:13},{wch:13},{wch:15},{wch:17},{wch:18},{wch:18},{wch:20},{wch:14}];
+    XLSX.utils.book_append_sheet(wb, wsS, "Summary");
+    const wsL = XLSX.utils.json_to_sheet(log.length ? log : [{Date:"",Activity:"",Comment:""}], { cellDates:true, dateNF:"dd/mm/yyyy" });
+    wsL["!cols"] = [{wch:12},{wch:24},{wch:50}];
+    XLSX.utils.book_append_sheet(wb, wsL, "Log");
+    if(monthly.length){
+      const wsM = XLSX.utils.json_to_sheet(monthly);
+      wsM["!cols"] = [{wch:10}, ...data.activities.map(a=>({wch:Math.max(10,a.length+2)}))];
+      XLSX.utils.book_append_sheet(wb, wsM, "By month");
+    }
+    XLSX.writeFile(wb, `Activity_Log_${todayISO()}.xlsx`);
+    toast("Excel file created");
+  });
+
+  // ---------- Backup / restore ----------
+  $("backupBtn").addEventListener("click", ()=>{
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type:"application/json"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = `Activity_Log_backup_${todayISO()}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+  });
+  $("restoreBtn").addEventListener("click", ()=> $("restoreFile").click());
+  $("restoreFile").addEventListener("change", ev=>{
+    const f = ev.target.files[0]; if(!f) return;
+    const r = new FileReader();
+    r.onload = ()=>{
+      try{
+        const d = JSON.parse(r.result);
+        if(!Array.isArray(d.activities) || !Array.isArray(d.entries)) throw 0;
+        if(!confirm(`Replace current data with backup (${d.entries.length} entries)?`)) return;
+        data = d; save(); renderAll(); toast("Restored");
+      }catch(e){ toast("Not a valid backup file"); }
+      ev.target.value = "";
+    };
+    r.readAsText(f);
+  });
+  $("wipeBtn").addEventListener("click", ()=>{
+    if(!data.entries.length){ toast("Nothing to delete"); return; }
+    if(confirm("Delete ALL logged entries? Activities are kept.") && confirm("Are you sure? This can't be undone.")){
+      data.entries = []; save(); renderAll(); toast("All entries deleted");
+    }
+  });
+
+  // ---------- Navigation ----------
+  document.querySelectorAll("nav button").forEach(b=>{
+    b.addEventListener("click", ()=>{
+      document.querySelectorAll("nav button").forEach(x=>x.classList.toggle("active", x===b));
+      document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active", v.id==="view-"+b.dataset.view));
+      if(b.dataset.view==="stats") renderStats();
+      window.scrollTo(0,0);
+    });
+  });
+
+  renderAll();
+
+  // ---------- Offline support ----------
+  if("serviceWorker" in navigator){
+    window.addEventListener("load", ()=> navigator.serviceWorker.register("sw.js").catch(()=>{}));
+  }
+})();
+</script>
+</body>
+</html>
